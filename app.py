@@ -197,14 +197,28 @@ def inyectar_estilo_giro():
         color: #FFFFFF;
     }
 
-    /* Zona de subida (borde punteado rojo) */
+    /* Zona de subida (borde punteado rojo, SIEMPRE fondo claro y letra negra) */
     [data-testid="stFileUploader"] {
         border: 2px dashed #F32624;
         border-radius: 12px;
         padding: 10px;
-        background: #FFF8F8;
+        background: #FFFFFF;
     }
     [data-testid="stFileUploader"]:hover { border-color: #FF9723; }
+    [data-testid="stFileUploaderDropzone"] {
+        background: #FFFFFF;
+        color: #000000;
+    }
+    [data-testid="stFileUploaderDropzone"] p,
+    [data-testid="stFileUploaderDropzone"] span,
+    [data-testid="stFileUploaderDropzone"] small,
+    [data-testid="stFileUploaderDropzone"] button {
+        color: #000000;
+    }
+    [data-testid="stFileUploaderFile"] {
+        background: #FFFFFF;
+        color: #000000;
+    }
 
     /* Selector de motor: opción activa en rojo GIRO */
     [data-testid="stSegmentedControl"] button {
@@ -216,11 +230,17 @@ def inyectar_estilo_giro():
         border-color: #F32624;
     }
 
-    /* Caja del texto transcrito */
+    /* Caja del texto transcrito (SIEMPRE fondo blanco y letra negra) */
     [data-testid="stTextArea"] textarea {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
         border: 2px solid #F32624 !important;
         border-radius: 8px;
         font-family: 'Century Gothic', 'Jost', sans-serif;
+    }
+    [data-testid="stTextArea"] label p,
+    [data-testid="stWidgetLabel"] p {
+        color: #000000;
     }
 
     /* Textos de ayuda */

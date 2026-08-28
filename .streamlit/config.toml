@@ -1,0 +1,9 @@
+# ============================================================
+# Tema de la web: fuerza el modo claro (fondo blanco)
+# para que la identidad GIRO se vea siempre correcta
+# ============================================================
+[theme]
+base = "light"
+
+[server]
+maxUploadSize = 200
