@@ -246,6 +246,49 @@ def inyectar_estilo_giro():
     /* Textos de ayuda */
     .stCaption, [data-testid="stCaptionContainer"] p { color: #636363; }
 
+    /* Barra de progreso GIRO */
+    .giro-bar {
+        background: #F5E6E6;
+        border: 1px solid #F32624;
+        border-radius: 10px;
+        height: 24px;
+        overflow: hidden;
+        margin: 14px 0;
+    }
+    .giro-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #F32624, #FF9723);
+        color: #FFFFFF;
+        font-family: 'Century Gothic', 'Jost', sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        line-height: 24px;
+        text-align: center;
+        border-radius: 10px;
+        transition: width 0.4s ease;
+        white-space: nowrap;
+        padding: 0 8px;
+    }
+    .giro-bar-fill.anim {
+        width: 100% !important;
+        background: repeating-linear-gradient(45deg, #F32624 0 12px, #CC2A5F 12px 24px);
+        animation: giro-rayas 1s linear infinite;
+    }
+    .giro-bar-fill.ok {
+        background: #12E092;
+    }
+    @keyframes giro-rayas {
+        from { background-position: 0 0; }
+        to { background-position: 34px 0; }
+    }
+    .giro-estado {
+        font-family: 'Century Gothic', 'Jost', sans-serif;
+        color: #636363;
+        font-size: 0.9rem;
+        margin: 6px 0 2px 0;
+    }
+    .giro-estado strong { color: #F32624; }
+
     /* Footer GIRO */
     .giro-footer {
         text-align: center;
@@ -259,6 +302,15 @@ def inyectar_estilo_giro():
     .giro-footer strong { color: #F32624; }
     </style>
     """, unsafe_allow_html=True)
+
+
+def barra_progreso(pct, animado=False, ok=False):
+    """Genera el HTML de la barra de progreso con colores GIRO."""
+    if animado:
+        return '<div class="giro-bar"><div class="giro-bar-fill anim">Procesando…</div></div>'
+    clase = "giro-bar-fill ok" if ok else "giro-bar-fill"
+    texto = "✅ ¡Completado!" if ok else f"{pct}%"
+    return f'<div class="giro-bar"><div class="{clase}" style="width:{pct}%">{texto}</div></div>'
 
 
 # ---------- INTERFAZ ----------
@@ -308,7 +360,8 @@ if st.button("Transcribir", type="primary"):
     else:
         with tempfile.TemporaryDirectory() as carpeta_tmp:
             total = len(archivos)
-            progreso = st.progress(0.0, text="Empezando…")
+            estado = st.empty()
+            progreso = st.empty()
             for i, archivo in enumerate(archivos):
                 ruta_original = os.path.join(carpeta_tmp, archivo.name)
                 with open(ruta_original, "wb") as f:
@@ -316,9 +369,19 @@ if st.button("Transcribir", type="primary"):
 
                 st.subheader(f"🎬 {archivo.name}")
                 try:
+                    estado.markdown(
+                        f'<p class="giro-estado"><strong>{archivo.name}</strong> — extrayendo audio…</p>',
+                        unsafe_allow_html=True,
+                    )
+                    progreso.markdown(barra_progreso(0, animado=True), unsafe_allow_html=True)
+
                     mp3s = extraer_audio_mp3(ruta_original, carpeta_tmp, f"audio_{i}")
                     partes = []
-                    for m in mp3s:
+                    for j, m in enumerate(mp3s):
+                        estado.markdown(
+                            f'<p class="giro-estado"><strong>{archivo.name}</strong> — transcribiendo (parte {j+1} de {len(mp3s)})…</p>',
+                            unsafe_allow_html=True,
+                        )
                         if motor == "Nube (Groq)":
                             texto = transcribir_con_groq(get_cliente_groq(), m)
                         else:
@@ -339,7 +402,15 @@ if st.button("Transcribir", type="primary"):
                     st.success("✅ Listo")
                 except Exception as e:
                     st.error(f"No pude transcribir {archivo.name}: {e}")
-                progreso.progress((i + 1) / total, text=f"{i + 1} de {total}")
+                pct = int((i + 1) / total * 100)
+                progreso.markdown(barra_progreso(pct), unsafe_allow_html=True)
+                estado.markdown(
+                    f'<p class="giro-estado"><strong>{archivo.name}</strong> — transcripción completa ✅</p>',
+                    unsafe_allow_html=True,
+                )
+            # Barra final en verde GIRO
+            progreso.markdown(barra_progreso(100, ok=True), unsafe_allow_html=True)
+            estado.markdown('<p class="giro-estado"><strong>🎉 ¡Todo transcrito!</strong> Descarga los .txt de cada cuña.</p>', unsafe_allow_html=True)
 
 # Footer con la identidad GIRO
 if logo_secundario:
