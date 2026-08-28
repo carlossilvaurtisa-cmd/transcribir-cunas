@@ -4,6 +4,7 @@
 import os
 import base64
 import tempfile
+import urllib.parse
 
 import av
 import streamlit as st
@@ -289,6 +290,23 @@ def inyectar_estilo_giro():
     }
     .giro-estado strong { color: #F32624; }
 
+    /* Botón de WhatsApp (verde oficial #25D366) */
+    .stLinkButton a {
+        background-color: #25D366 !important;
+        border: 2px solid #25D366 !important;
+        color: #FFFFFF !important;
+        font-family: 'Century Gothic', 'Jost', sans-serif;
+        font-weight: 700;
+        border-radius: 8px;
+        padding: 0.6rem 1.4rem;
+        transition: all 0.2s ease;
+    }
+    .stLinkButton a:hover {
+        background-color: #1DA851 !important;
+        border-color: #1DA851 !important;
+        color: #FFFFFF !important;
+    }
+
     /* Footer GIRO */
     .giro-footer {
         text-align: center;
@@ -392,13 +410,20 @@ if st.button("Transcribir", type="primary"):
 
                     with st.container(border=True):
                         texto_editado = st.text_area("Transcripción", value=texto_final, height=180)
-                        st.download_button(
-                            "⬇️ Descargar .txt",
-                            data=texto_editado,
-                            file_name=os.path.splitext(archivo.name)[0] + ".txt",
-                            key=f"desc_{i}",
-                            type="primary",
-                        )
+                        c_desc, c_wa = st.columns(2)
+                        with c_desc:
+                            st.download_button(
+                                "⬇️ Descargar .txt",
+                                data=texto_editado,
+                                file_name=os.path.splitext(archivo.name)[0] + ".txt",
+                                key=f"desc_{i}",
+                                type="primary",
+                            )
+                        with c_wa:
+                            # Botón que abre WhatsApp con la transcripción lista para enviar
+                            mensaje = f"🎙️ Transcripción de {archivo.name}:\n\n{texto_editado}"[:4000]
+                            url_wa = "https://wa.me/?text=" + urllib.parse.quote(mensaje)
+                            st.link_button("📲 Compartir por WhatsApp", url_wa)
                     st.success("✅ Listo")
                 except Exception as e:
                     st.error(f"No pude transcribir {archivo.name}: {e}")
