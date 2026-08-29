@@ -124,10 +124,23 @@ herramienta = st.segmented_control(
 
 # ---------- MODO 1: CONVERTIR FORMATOS ----------
 if herramienta == "Convertir formato de documento":
-    archivo = st.file_uploader("Sube tu documento", type=["txt", "md", "pdf", "docx"])
+    archivo = st.file_uploader("Sube tu documento", type=["txt", "md", "pdf", "docx"],
+                               key="docs_convertir")
+
+    # Memoria: guarda el archivo y lo recupera al volver a esta pestaña
+    if archivo is not None:
+        giro_ui.recordar_archivos("memoria_docs", [archivo])
+    elif giro_ui.archivos_en_memoria("memoria_docs"):
+        archivo = giro_ui.archivos_en_memoria("memoria_docs")[0]
+
     if archivo is None:
         st.info("👆 Sube un documento para empezar")
         st.stop()
+
+    giro_ui.mostrar_aviso_memoria(
+        "memoria_docs",
+        f"📌 Usando '{archivo.name}' recordado de la sesión anterior",
+    )
 
     ext = archivo.name.rsplit(".", 1)[-1].lower()
     destinos = {"txt": ["PDF"], "md": ["PDF"], "pdf": ["TXT"], "docx": ["TXT", "PDF"]}
@@ -169,10 +182,22 @@ if herramienta == "Convertir formato de documento":
 
 # ---------- MODO 2: PDF → IMÁGENES Y TEXTO ----------
 else:
-    archivo = st.file_uploader("Sube tu PDF", type=["pdf"])
+    archivo = st.file_uploader("Sube tu PDF", type=["pdf"], key="docs_pdf")
+
+    # Memoria: guarda el archivo y lo recupera al volver a esta pestaña
+    if archivo is not None:
+        giro_ui.recordar_archivos("memoria_docs_pdf", [archivo])
+    elif giro_ui.archivos_en_memoria("memoria_docs_pdf"):
+        archivo = giro_ui.archivos_en_memoria("memoria_docs_pdf")[0]
+
     if archivo is None:
         st.info("👆 Sube un PDF para empezar")
         st.stop()
+
+    giro_ui.mostrar_aviso_memoria(
+        "memoria_docs_pdf",
+        f"📌 Usando '{archivo.name}' recordado de la sesión anterior",
+    )
 
     peso_pdf = peso_mb(archivo.getvalue())
 
@@ -194,11 +219,7 @@ else:
             imagenes = pdf_a_imagenes(contenido, zoom, formato, calidad_jpg, bn)
             st.success(f"✅ {len(imagenes)} página(s) convertida(s) a {formato}")
 
-            # Mostrar las páginas como imágenes
-            for nombre, datos in imagenes:
-                st.image(datos, caption=nombre)
-
-            # ZIP con todo
+            # ZIP con todo (se prepara y se ofrece ANTES de la previsualización)
             buf_zip = io.BytesIO()
             with zipfile.ZipFile(buf_zip, "w", zipfile.ZIP_DEFLATED) as z:
                 for nombre, datos in imagenes:
@@ -218,6 +239,11 @@ else:
                 file_name=f"{nombre_base}_paginas.zip",
                 type="primary",
             )
+
+            # Previsualización de las páginas (después del botón de descarga)
+            st.subheader("Previsualización de las páginas")
+            for nombre, datos in imagenes:
+                st.image(datos, caption=nombre)
         except Exception as e:
             st.error(f"❌ No pude convertir el PDF: {e}")
 # FIN BLOQUE 1

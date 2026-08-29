@@ -150,9 +150,20 @@ if herramienta == "Transformar foto / lote":
     archivos = st.file_uploader("Arrastra una o varias fotos", type=FORMATOS_FOTO,
                                 accept_multiple_files=True, key="transformar_lote")
 
+    # Memoria: guarda los archivos y los recupera al volver a esta pestaña
+    if archivos:
+        giro_ui.recordar_archivos("memoria_fotos", archivos)
+    elif giro_ui.archivos_en_memoria("memoria_fotos"):
+        archivos = giro_ui.archivos_en_memoria("memoria_fotos")
+
     if not archivos:
         st.info("👆 Sube una o varias fotos para empezar")
         st.stop()
+
+    giro_ui.mostrar_aviso_memoria(
+        "memoria_fotos",
+        f"📌 {len(archivos)} foto(s) recordadas de la sesión anterior — se usarán estas",
+    )
 
     st.caption(f"Subidas: **{len(archivos)} foto(s)** — mismas transformaciones para todas")
     previews = st.columns(min(len(archivos), 6))
@@ -251,9 +262,20 @@ else:
     archivos = st.file_uploader("Arrastra una o varias fotos", type=FORMATOS_FOTO,
                                 accept_multiple_files=True, key="corregir_lote")
 
+    # Memoria: guarda los archivos y los recupera al volver a esta pestaña
+    if archivos:
+        giro_ui.recordar_archivos("memoria_fotos", archivos)
+    elif giro_ui.archivos_en_memoria("memoria_fotos"):
+        archivos = giro_ui.archivos_en_memoria("memoria_fotos")
+
     if not archivos:
         st.info("👆 Sube las fotos que quieres corregir")
         st.stop()
+
+    giro_ui.mostrar_aviso_memoria(
+        "memoria_fotos",
+        f"📌 {len(archivos)} foto(s) recordadas de la sesión anterior",
+    )
 
     pendientes = [a for a in archivos if a.name not in st.session_state["hechas"]]
 

@@ -10,6 +10,7 @@ Todas las páginas lo usan para verse iguales.
 """
 import os
 import base64
+import io
 
 import streamlit as st
 
@@ -288,4 +289,50 @@ def cargar_clave_api():
                     clave = linea.split("=", 1)[1].strip().strip('"').strip("'")
                     break
     return clave or None
+
+
+class ArchivoMemoria:
+    """Recrea un archivo subido a partir de bytes guardados.
+    Se comporta como el archivo original (name, getvalue, read…)
+    para poder usarlo después de cambiar de pestaña."""
+
+    def __init__(self, nombre, datos):
+        self.name = nombre
+        self._buf = io.BytesIO(datos)
+
+    def getvalue(self):
+        return self._buf.getvalue()
+
+    def getbuffer(self):
+        return self._buf.getbuffer()
+
+    def read(self, *args):
+        return self._buf.read(*args)
+
+    def seek(self, *args):
+        return self._buf.seek(*args)
+
+
+def recordar_archivos(clave, archivos):
+    """Guarda los archivos (nombre + bytes) en la memoria de la sesión."""
+    st.session_state[clave] = [(a.name, a.getvalue()) for a in archivos]
+
+
+def archivos_en_memoria(clave):
+    """Devuelve los archivos recordados como objetos ArchivoMemoria (o [])."""
+    return [ArchivoMemoria(n, d) for n, d in st.session_state.get(clave, [])]
+
+
+def mostrar_aviso_memoria(clave, texto):
+    """Muestra un aviso con botón para olvidar los archivos recordados."""
+    if st.session_state.get(clave):
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.info(texto)
+        with c2:
+            if st.button("🗑️ Olvidar", key=f"olvidar_{clave}"):
+                st.session_state.pop(clave, None)
+                st.rerun()
+        return True
+    return False
 # FIN BLOQUE 1
