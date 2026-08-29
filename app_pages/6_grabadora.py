@@ -8,7 +8,7 @@ import os
 import tempfile
 
 import streamlit as st
-import streamlit.components.v2 as components
+from streamlit.components.v1 import html as html_component
 from groq import Groq
 
 import giro_ui
@@ -170,7 +170,7 @@ HTML_GRABADORA = """
 st.title("🎙️ Grabadora")
 st.caption("Graba hasta 10 minutos con el botón grande · el audio queda comprimido automáticamente.")
 
-valor = components.html(HTML_GRABADORA, height=340, key="grabadora")
+valor = html_component(HTML_GRABADORA, height=340, key="grabadora")
 
 if valor and valor.get("base64"):
     datos_audio = base64.b64decode(valor["base64"])
