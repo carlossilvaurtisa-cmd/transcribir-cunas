@@ -219,6 +219,23 @@ def inyectar_estilo_giro():
     }
     .giro-footer img { max-height: 40px; opacity: 0.85; }
     .giro-footer strong { color: #F32624; }
+
+    /* ===== VERSIÓN MÓVIL (pantallas menores a 700px) ===== */
+    @media (max-width: 700px) {
+        .giro-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 20px;
+        }
+        .giro-header h1 { font-size: 1.4rem; }
+        .giro-header img { max-height: 52px; }
+        /* Botones a ancho completo en móvil */
+        .stButton > button[kind="primary"],
+        .stLinkButton a {
+            width: 100%;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 

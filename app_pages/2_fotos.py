@@ -233,7 +233,7 @@ else:
             with col:
                 st.image(Image.open(a), width=130)
                 st.caption(f"{a.name[:16]}… ({peso_mb(a.getvalue()):.1f} MB)")
-                if st.button(f"✏️ Editar {a.name[:14]}", key=f"edit_{a.name}", use_container_width=True):
+                if st.button(f"✏️ Editar {a.name[:14]}", key=f"edit_{a.name}", width="stretch"):
                     st.session_state["editando"] = a.name
                     st.rerun()
 
