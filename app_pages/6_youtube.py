@@ -15,10 +15,30 @@ import giro_ui
 MAX_DURACION_NUBE = 20 * 60      # 20 minutos
 MAX_PESO_NUBE_MB = 400
 
+# "Disfraz" de navegador: YouTube bloquea descargas sin estos datos
+UA_CHROME = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+             "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+
+def opciones_base():
+    """Opciones comunes para yt-dlp que evitan el bloqueo 403 de YouTube."""
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "nocheckcertificate": True,
+        "http_headers": {
+            "User-Agent": UA_CHROME,
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        },
+        # El cliente "android" de YouTube esquiva los bloqueos de descarga
+        "extractor_args": {"youtube": {"player_client": ["android", "web_safari", "web"]}},
+    }
+
 
 def info_video(url):
     """Consulta los datos del video en YouTube (título, duración, canal…)."""
-    opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+    opts = opciones_base()
+    opts["skip_download"] = True
     with yt_dlp.YoutubeDL(opts) as ydl:
         return ydl.extract_info(url, download=False)
 
@@ -27,19 +47,15 @@ def descargar_archivo(url, tipo):
     """Descarga el video/audio de YouTube a una carpeta temporal.
     Devuelve (info, ruta_del_archivo, es_audio)."""
     carpeta = tempfile.mkdtemp()
+    opts = opciones_base()
     if tipo == "🎵 Audio MP3":
-        opts = {
-            "format": "bestaudio/best",
-            "outtmpl": os.path.join(carpeta, "audio.%(ext)s"),
-            "quiet": True, "no_warnings": True,
-        }
+        # m4a (aac) es el formato de audio más compatible para descargar
+        opts["format"] = "bestaudio[ext=m4a]/bestaudio/best"
+        opts["outtmpl"] = os.path.join(carpeta, "audio.%(ext)s")
     else:
         altura = {"🎬 Video 1080p": 1080, "🎬 Video 720p": 720, "🎬 Video 480p": 480}[tipo]
-        opts = {
-            "format": f"best[ext=mp4][height<={altura}]/best[ext=mp4]/best",
-            "outtmpl": os.path.join(carpeta, "video.%(ext)s"),
-            "quiet": True, "no_warnings": True,
-        }
+        opts["format"] = f"best[ext=mp4][height<={altura}]/best[ext=mp4]/best"
+        opts["outtmpl"] = os.path.join(carpeta, "video.%(ext)s")
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
     archivos = [a for a in os.listdir(carpeta) if not a.endswith((".part", ".ytdl"))]
