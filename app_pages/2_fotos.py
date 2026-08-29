@@ -33,8 +33,10 @@ def corregir_imagen(img, brillo, contraste, saturacion, nitidez):
     return nueva
 
 
-def transformar_imagen(img, rotacion, volteo, filtro, ancho_max, calidad, formato_salida):
-    """Aplica forma y tamaño a UNA imagen. Devuelve (imagen, bytes, extensión)."""
+def transformar_imagen(img, rotacion, volteo, filtro, ajuste_tipo, ajuste_valor, formato_salida):
+    """Aplica forma y ajuste de tamaño/peso a UNA imagen.
+    ajuste_tipo: 'porcentaje' (escala %) o 'peso' (objetivo MB).
+    Devuelve (imagen, bytes, extensión, peso_logrado_mb)."""
     nueva = ImageOps.exif_transpose(img)
 
     if rotacion:
@@ -44,9 +46,6 @@ def transformar_imagen(img, rotacion, volteo, filtro, ancho_max, calidad, format
     elif volteo == "Vertical":
         nueva = ImageOps.flip(nueva)
 
-    if ancho_max and nueva.width > ancho_max:
-        nueva.thumbnail((ancho_max, ancho_max), Image.LANCZOS)
-
     if filtro == "Blanco y negro":
         nueva = ImageOps.grayscale(nueva)
     elif filtro == "Sepia":
@@ -54,21 +53,38 @@ def transformar_imagen(img, rotacion, volteo, filtro, ancho_max, calidad, format
     elif filtro == "Desenfoque suave":
         nueva = nueva.filter(ImageFilter.GaussianBlur(2))
 
-    buf = io.BytesIO()
     ext = {"JPG": "jpg", "PNG": "png", "WEBP": "webp"}[formato_salida]
-    if nueva.mode in ("RGBA", "P", "LA") and ext == "jpg":
-        nueva = nueva.convert("RGB")
-    if formato_salida == "JPG":
-        nueva.save(buf, "JPEG", quality=calidad, optimize=True)
-    elif formato_salida == "PNG":
+
+    # Ajuste por PORCENTAJE: se escala el tamaño de la foto
+    if ajuste_tipo == "porcentaje":
+        pct = ajuste_valor / 100
+        nueva = nueva.resize((max(1, int(nueva.width * pct)), max(1, int(nueva.height * pct))), Image.LANCZOS)
+        buf = io.BytesIO()
+        if nueva.mode in ("RGBA", "P", "LA") and ext == "jpg":
+            nueva = nueva.convert("RGB")
+        if formato_salida == "JPG":
+            nueva.save(buf, "JPEG", quality=90, optimize=True)
+        elif formato_salida == "PNG":
+            nueva.save(buf, "PNG", optimize=True)
+        else:
+            nueva.save(buf, "WEBP", quality=90, optimize=True)
+        return nueva, buf.getvalue(), ext, peso_mb(buf.getvalue())
+
+    # Ajuste por PESO OBJETIVO: se comprime hasta alcanzar el peso pedido
+    fmt_pil = {"JPG": "JPEG", "WEBP": "WEBP"}.get(formato_salida)
+    if fmt_pil is None:   # PNG no se puede comprimir a un peso pedido
+        buf = io.BytesIO()
+        if nueva.mode in ("RGBA", "P", "LA"):
+            nueva = nueva.convert("RGB")
         nueva.save(buf, "PNG", optimize=True)
-    else:
-        nueva.save(buf, "WEBP", quality=calidad, optimize=True)
-    return nueva, buf.getvalue(), ext
+        return nueva, buf.getvalue(), ext, peso_mb(buf.getvalue())
+    img_final, datos = ajustar_a_peso(nueva, ajuste_valor, fmt_pil)
+    return img_final, datos, ext, peso_mb(datos)
 
 
-def reducir_para_whatsapp(img, limite_mb=LÍMITE_WHATSAPP_MB):
-    """Reduce una foto hasta que pese menos del límite (en MB)."""
+def ajustar_a_peso(img, limite_mb, fmt="JPEG"):
+    """Comprime una foto hasta que pese menos del límite (en MB).
+    Baja la calidad primero; si no basta, baja la resolución."""
     if img.mode in ("RGBA", "P", "LA"):
         img = img.convert("RGB")
     ancho_max = 4096
@@ -77,7 +93,7 @@ def reducir_para_whatsapp(img, limite_mb=LÍMITE_WHATSAPP_MB):
     calidad = 88
     while True:
         buf = io.BytesIO()
-        img.save(buf, "JPEG", quality=calidad, optimize=True)
+        img.save(buf, fmt, quality=calidad, optimize=True)
         peso_mb = buf.tell() / (1024 * 1024)
         if peso_mb <= limite_mb or calidad <= 30:
             break
@@ -87,7 +103,7 @@ def reducir_para_whatsapp(img, limite_mb=LÍMITE_WHATSAPP_MB):
         calidad = 85
         while True:
             buf = io.BytesIO()
-            img.save(buf, "JPEG", quality=calidad, optimize=True)
+            img.save(buf, fmt, quality=calidad, optimize=True)
             peso_mb = buf.tell() / (1024 * 1024)
             if peso_mb <= limite_mb or calidad <= 25:
                 break
@@ -95,6 +111,11 @@ def reducir_para_whatsapp(img, limite_mb=LÍMITE_WHATSAPP_MB):
         if max(img.size) < 800:
             break
     return img, buf.getvalue()
+
+
+def reducir_para_whatsapp(img, limite_mb=LÍMITE_WHATSAPP_MB):
+    """Reduce una foto hasta 16 MB (WhatsApp). Reutiliza el ajuste por peso."""
+    return ajustar_a_peso(img, limite_mb, "JPEG")
 
 
 def peso_mb(bytes_: bytes) -> float:
@@ -147,15 +168,23 @@ if herramienta == "Transformar foto / lote":
         filtro = c7.selectbox("Filtro", ["Ninguno", "Blanco y negro", "Sepia", "Desenfoque suave"])
 
     with st.expander("⚖️ Tamaño y peso de salida", expanded=False):
-        c8, c9, c10 = st.columns(3)
-        ancho_max = c8.selectbox(
-            "Ancho máximo (px)",
-            ["Original", 4096, 2560, 1920, 1280, 800],
-            help="Si la foto es más ancha, se reduce. 'Original' la deja igual.",
+        modo_tamaño = st.selectbox(
+            "Ajustar por",
+            ["Porcentaje del tamaño original", "Peso del archivo (MB)"],
+            help="Porcentaje = escala la foto al % del tamaño. Peso = comprime hasta alcanzar los MB pedidos.",
         )
-        calidad = c9.slider("Calidad (JPG/WebP)", 30, 100, 85,
-                            help="Menos calidad = menos peso. Recomendado: 85")
-        formato_salida = c10.selectbox("Formato de salida", ["JPG", "PNG", "WEBP"])
+        if modo_tamaño == "Porcentaje del tamaño original":
+            ajuste_tipo = "porcentaje"
+            ajuste_valor = st.slider("Porcentaje del tamaño original (%)", 10, 100, 50, 5,
+                                     help="50% = la foto queda a la mitad de su tamaño en píxeles")
+        else:
+            ajuste_tipo = "peso"
+            ajuste_valor = st.slider("Peso objetivo (MB)", 0.5, 32.0, 5.0, 0.5,
+                                     help="La app baja calidad y resolución hasta acercarse a este peso")
+        formato_salida = st.selectbox("Formato de salida", ["JPG", "PNG", "WEBP"])
+        if ajuste_tipo == "peso" and formato_salida == "PNG":
+            st.warning("⚠️ El formato PNG no se puede comprimir a un peso pedido. Usa JPG o WEBP para el peso objetivo.")
+        st.caption("💡 El modo **Peso (MB)** es ideal para WhatsApp, correo o subir a la web.")
 
     total_original = sum(peso_mb(a.getvalue()) for a in archivos)
 
@@ -164,7 +193,6 @@ if herramienta == "Transformar foto / lote":
         resultados = []
         estado = st.empty()
         progreso = st.empty()
-        ancho_num = ancho_max if isinstance(ancho_max, int) else None
 
         with zipfile.ZipFile(buf_zip, "w", zipfile.ZIP_DEFLATED) as z:
             for i, archivo in enumerate(archivos):
@@ -175,8 +203,8 @@ if herramienta == "Transformar foto / lote":
                 progreso.markdown(giro_ui.barra_progreso(0, animado=True), unsafe_allow_html=True)
 
                 img = Image.open(archivo)
-                img_final, datos, ext = transformar_imagen(
-                    img, rotacion, volteo, filtro, ancho_num, calidad, formato_salida,
+                img_final, datos, ext, peso_logrado = transformar_imagen(
+                    img, rotacion, volteo, filtro, ajuste_tipo, ajuste_valor, formato_salida,
                 )
                 nombre_salida = f"{archivo.name.rsplit('.', 1)[0]}_{filtro.replace(' ', '_').lower() or 'editada'}.{ext}"
                 z.writestr(nombre_salida, datos)
@@ -195,7 +223,11 @@ if herramienta == "Transformar foto / lote":
         c_meta1.metric("Peso original (todas)", f"{total_original:.1f} MB")
         c_meta2.metric("Peso final (ZIP)", f"{total_nuevo:.1f} MB",
                        delta=f"{-100 + total_nuevo / max(total_original, 0.001) * 100:.0f}%")
-        c_meta3.metric("Dimensiones finales", f"{img_final.width} × {img_final.height} px")
+        if ajuste_tipo == "peso":
+            c_meta3.metric("Peso por foto", f"{peso_logrado:.1f} MB",
+                           delta=f"objetivo: {ajuste_valor:.1f} MB")
+        else:
+            c_meta3.metric("Dimensiones finales", f"{img_final.width} × {img_final.height} px")
 
         st.subheader("Resultados")
         columnas = st.columns(min(len(resultados), 4))
