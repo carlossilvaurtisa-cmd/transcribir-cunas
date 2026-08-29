@@ -95,6 +95,27 @@ def transcribir_con_local(modelo, ruta_mp3):
     return " ".join(seg.text.strip() for seg in segmentos)
 
 
+def mejorar_texto_con_ia(texto):
+    """Limpia y ordena el texto usando IA: corrige errores, quita
+    muletillas, puntúa y arma párrafos."""
+    client = get_cliente_groq()
+    respuesta = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": (
+                "Eres un transcriptor profesional de entrevistas. Recibes una transcripción "
+                "automática con errores y muletillas. Devuelve SOLO el texto corregido: "
+                "corrige palabras mal escuchadas, elimina muletillas (eh, este, ya no, o sea, "
+                "repetido), pon puntuación y mayúsculas correctas, y separa en párrafos "
+                "cortos por idea. No agregues comentarios ni explicaciones."
+            )},
+            {"role": "user", "content": texto},
+        ],
+        temperature=0.2,
+    )
+    return respuesta.choices[0].message.content.strip()
+
+
 # ---------- INTERFAZ ----------
 st.title("🎙️ Transcripción de cuñas")
 st.caption("Sube videos o audios y recibe el texto en español. Descarga el .txt o compártelo por WhatsApp.")
@@ -150,19 +171,27 @@ if st.button("Transcribir", type="primary"):
                     texto_final = " ".join(partes)
 
                     with st.container(border=True):
-                        texto_editado = st.text_area("Transcripción", value=texto_final, height=180)
-                        c_desc, c_wa = st.columns(2)
+                        st.text_area("Transcripción", value=texto_final, height=180,
+                                     key=f"ta_{i}")
+                        c_mej, c_desc, c_wa = st.columns(3)
+                        with c_mej:
+                            if st.button("✨ Mejorar con IA", key=f"mejorar_{i}",
+                                         help="Corrige errores, quita muletillas y ordena en párrafos"):
+                                with st.spinner("Mejorando el texto…"):
+                                    mejorado = mejorar_texto_con_ia(st.session_state[f"ta_{i}"])
+                                st.session_state[f"ta_{i}"] = mejorado
+                                st.rerun()
                         with c_desc:
                             st.download_button(
                                 "⬇️ Descargar .txt",
-                                data=texto_editado,
+                                data=st.session_state[f"ta_{i}"],
                                 file_name=os.path.splitext(archivo.name)[0] + ".txt",
                                 key=f"desc_{i}",
                                 type="primary",
                             )
                         with c_wa:
                             # Botón que abre WhatsApp con la transcripción lista para enviar
-                            mensaje = f"🎙️ Transcripción de {archivo.name}:\n\n{texto_editado}"[:4000]
+                            mensaje = f"🎙️ Transcripción de {archivo.name}:\n\n{st.session_state[f'ta_{i}']}"[:4000]
                             url_wa = "https://wa.me/?text=" + urllib.parse.quote(mensaje)
                             st.link_button("📲 Compartir por WhatsApp", url_wa)
                     st.success("✅ Listo")

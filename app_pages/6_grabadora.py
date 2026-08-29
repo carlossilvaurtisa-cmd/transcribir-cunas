@@ -1,20 +1,22 @@
 # ============================================================
 # BLOQUE 1: HERRAMIENTA — GRABADORA DE AUDIO (PENSADA PARA MÓVIL)
-# Graba hasta 10 min con compresión, botón grande bloqueado,
-# y permite transcribir el audio desde la misma plataforma.
-# Usa un componente custom v2 (HTML + JS inline).
+# Graba hasta 10 min con BUENA calidad (48kHz mono 128kbps)
+# y permite transcribir o comprimir el audio desde la plataforma.
 # ============================================================
 import base64
+import io
 import os
 import tempfile
 import urllib.parse
 
+import av
 import streamlit as st
 from groq import Groq
 
 import giro_ui
 
 MODELO_GROQ = "whisper-large-v3-turbo"
+MODELO_CHAT = "llama-3.3-70b-versatile"
 
 
 @st.cache_resource
@@ -33,6 +35,54 @@ def transcribir_con_groq(client, ruta_audio):
             response_format="json",
         )
     return respuesta.text
+
+
+def mejorar_texto_con_ia(texto):
+    """Limpia y ordena el texto de la transcripción usando IA:
+    corrige errores, quita muletillas, puntúa y arma párrafos."""
+    client = get_cliente_groq()
+    respuesta = client.chat.completions.create(
+        model=MODELO_CHAT,
+        messages=[
+            {"role": "system", "content": (
+                "Eres un transcriptor profesional de entrevistas. Recibes una transcripción "
+                "automática con errores y muletillas. Devuelve SOLO el texto corregido: "
+                "corrige palabras mal escuchadas, elimina muletillas (eh, este, ya no, o sea, "
+                "repetido), pon puntuación y mayúsculas correctas, y separa en párrafos "
+                "cortos por idea. No agregues comentarios ni explicaciones."
+            )},
+            {"role": "user", "content": texto},
+        ],
+        temperature=0.2,
+    )
+    return respuesta.choices[0].message.content.strip()
+
+
+def comprimir_a_mp3(ruta_entrada, ruta_salida, rate=16000, bitrate=64):
+    """Comprime el audio grabado a MP3 pequeño (mono, 16kHz, 64kbps).
+    Excelente para WhatsApp/correo; la voz se entiende perfecto."""
+    buf = io.BytesIO()
+    with av.open(ruta_entrada) as entrada:
+        stream = entrada.streams.audio[0]
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=rate)
+        with av.open(buf, "w", format="mp3") as salida:
+            mp3 = salida.add_stream("mp3", rate=rate)
+            mp3.bit_rate = bitrate * 1000
+            mp3.layout = "mono"
+            for frame in entrada.decode(stream):
+                for rframe in resampler.resample(frame):
+                    rframe.pts = None
+                    for paquete in mp3.encode(rframe):
+                        salida.mux(paquete)
+            for rframe in resampler.resample(None):
+                rframe.pts = None
+                for paquete in mp3.encode(rframe):
+                    salida.mux(paquete)
+            for paquete in mp3.encode(None):
+                salida.mux(paquete)
+    with open(ruta_salida, "wb") as f:
+        f.write(buf.getvalue())
+    return ruta_salida
 
 
 # ---------- HTML del componente (el botón grande) ----------
@@ -77,7 +127,7 @@ HTML_GRABADORA = """
   <button id="btn">🎙️<br>GRABAR</button>
   <div id="timer">00:00 / 10:00</div>
   <div id="estado">Listo para grabar</div>
-  <div id="aviso">Toca GRABAR para empezar · toca DETENER para terminar</div>
+  <div id="aviso">Calidad voz: 48 kHz · 128 kbps · mono</div>
 </div>
 """
 
@@ -111,13 +161,22 @@ export default function (component) {
 
   btn.addEventListener('click', async () => {
     if (mediaRecorder === null) {
-      // ----- INICIAR GRABACIÓN -----
+      // ----- INICIAR GRABACIÓN (buena calidad para transcripción) -----
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 48000,
+            channelCount: 1
+          }
+        });
         const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
                    : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
                    : '';
-        mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        const opciones = { audioBitsPerSecond: 128000 }; // 128 kbps: voz nítida
+        if (mime) opciones.mimeType = mime;
+        mediaRecorder = new MediaRecorder(stream, opciones);
         chunks = [];
         segundos = 0;
         mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
@@ -176,7 +235,7 @@ _GRABADORA = st.components.v2.component(
 
 # ---------- INTERFAZ ----------
 st.title("🎙️ Grabadora")
-st.caption("Graba hasta 10 minutos con el botón grande · el audio queda comprimido automáticamente.")
+st.caption("Graba hasta 10 minutos con buena calidad de voz (48 kHz · 128 kbps · mono).")
 
 resultado = _GRABADORA(
     key="grabadora",
@@ -197,17 +256,40 @@ if grabacion and grabacion.get("base64"):
     st.divider()
     c1, c2, c3 = st.columns(3)
     c1.metric("Duración", f"{int(duracion // 60)} min {int(duracion % 60)} s")
-    c2.metric("Peso (comprimido)", f"{peso_mb:.2f} MB")
-    c3.metric("Formato", "Opus/AAC (comprimido)")
+    c2.metric("Peso (calidad voz)", f"{peso_mb:.1f} MB")
+    c3.metric("Calidad", "48 kHz / 128 kbps")
 
     st.audio(datos_audio, format=formato)
 
-    st.download_button(
-        "⬇️ Descargar audio",
-        data=datos_audio,
-        file_name=nombre_audio,
-        type="primary",
-    )
+    c_desc, c_compr = st.columns(2)
+    with c_desc:
+        st.download_button(
+            "⬇️ Descargar audio (calidad)",
+            data=datos_audio,
+            file_name=nombre_audio,
+            type="primary",
+        )
+    with c_compr:
+        # Comprimir a MP3 pequeño para WhatsApp/correo
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(datos_audio)
+            ruta_orig = tmp.name
+        try:
+            ruta_mp3 = os.path.join(os.path.dirname(ruta_orig), "mp3_final.mp3")
+            comprimir_a_mp3(ruta_orig, ruta_mp3)
+            with open(ruta_mp3, "rb") as f:
+                datos_mp3 = f.read()
+            peso_mp3 = len(datos_mp3) / (1024 * 1024)
+            st.download_button(
+                f"🗜️ MP3 pequeño ({peso_mp3:.1f} MB)",
+                data=datos_mp3,
+                file_name=nombre_audio.rsplit(".", 1)[0] + ".mp3",
+                help="Comprimido a 64 kbps mono: ideal para WhatsApp (10 min ≈ 5 MB)",
+            )
+        finally:
+            os.remove(ruta_orig)
+            if os.path.exists(ruta_mp3):
+                os.remove(ruta_mp3)
 
     # ----- TRANSCRIBIR DESDE LA MISMA PLATAFORMA -----
     st.subheader("📝 Transcribir esta grabación")
@@ -227,17 +309,24 @@ if grabacion and grabacion.get("base64"):
             estado.markdown('<p class="giro-estado"><strong>✅ Transcripción lista</strong></p>', unsafe_allow_html=True)
 
             with st.container(border=True):
-                texto_editado = st.text_area("Transcripción", value=texto, height=200)
-                c1, c2 = st.columns(2)
+                st.text_area("Transcripción", value=texto, height=200, key="ta_grabadora")
+                c_mej, c1, c2 = st.columns(3)
+                with c_mej:
+                    if st.button("✨ Mejorar con IA", key="mejorar_grab"):
+                        with st.spinner("Mejorando el texto…"):
+                            mejorado = mejorar_texto_con_ia(st.session_state["ta_grabadora"])
+                        st.session_state["ta_grabadora"] = mejorado
+                        st.rerun()
                 with c1:
                     st.download_button(
                         "⬇️ Descargar .txt",
-                        data=texto_editado,
+                        data=st.session_state["ta_grabadora"],
                         file_name=nombre_audio.rsplit(".", 1)[0] + ".txt",
+                        key="desc_grab",
                         type="primary",
                     )
                 with c2:
-                    mensaje = f"🎙️ Transcripción de grabación:\n\n{texto_editado}"[:4000]
+                    mensaje = f"🎙️ Transcripción de grabación:\n\n{st.session_state['ta_grabadora']}"[:4000]
                     st.link_button("📲 Compartir por WhatsApp",
                                    "https://wa.me/?text=" + urllib.parse.quote(mensaje))
         except Exception as e:

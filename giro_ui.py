@@ -231,11 +231,33 @@ def inyectar_estilo_giro():
         }
         .giro-header h1 { font-size: 1.4rem; }
         .giro-header img { max-height: 52px; }
-        /* Botones a ancho completo en móvil */
+
+        /* Más espacio útil: márgenes reducidos */
+        .block-container { padding: 1rem 0.75rem 2rem 0.75rem !important; }
+
+        /* Títulos más compactos */
+        h1 { font-size: 1.55rem !important; }
+
+        /* Botones grandes y táctiles (fáciles con el pulgar) */
         .stButton > button[kind="primary"],
+        .stButton > button,
+        .stDownloadButton > button,
         .stLinkButton a {
             width: 100%;
+            min-height: 2.9rem;
+            font-size: 1rem;
         }
+
+        /* Tarjetas de métricas compactas (caben 3 en fila) */
+        [data-testid="stMetric"] { padding: 0.4rem 0.2rem !important; }
+        [data-testid="stMetric"] label { font-size: 0.72rem !important; }
+        [data-testid="stMetricValue"] { font-size: 1.25rem !important; }
+
+        /* Cajas de texto más altas para leer mejor */
+        [data-testid="stTextArea"] textarea { min-height: 150px !important; }
+
+        /* Columnas apiladas con separación */
+        [data-testid="stHorizontalBlock"] { gap: 0.6rem; }
     }
     </style>
     """, unsafe_allow_html=True)
