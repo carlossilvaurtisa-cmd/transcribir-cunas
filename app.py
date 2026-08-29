@@ -27,6 +27,8 @@ giro_ui.header_giro()
 paginas = st.navigation([
     st.Page("app_pages/1_transcripcion.py", title="Transcripción de cuñas",
             icon=":material/mic:", default=True),
+    st.Page("app_pages/6_grabadora.py", title="Grabadora",
+            icon=":material/fiber_manual_record:"),
     st.Page("app_pages/2_fotos.py", title="Fotos",
             icon=":material/photo_camera:"),
     st.Page("app_pages/3_documentos.py", title="Documentos",
