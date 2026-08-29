@@ -258,6 +258,47 @@ def inyectar_estilo_giro():
 
         /* Columnas apiladas con separación */
         [data-testid="stHorizontalBlock"] { gap: 0.6rem; }
+
+        /* ===== INDICADOR DEL MENÚ (sidebar oculto en móvil) =====
+           Botón flotante rojo grande y pulsante para que se note */
+        [data-testid="stSidebarCollapsedControl"] {
+            bottom: 1.2rem !important;
+            left: 1rem !important;
+            background: #F32624 !important;
+            border-radius: 50% !important;
+            width: 60px !important;
+            height: 60px !important;
+            box-shadow: 0 6px 18px rgba(243, 38, 36, 0.55) !important;
+            z-index: 999 !important;
+            animation: menu-flota 2s ease-in-out infinite !important;
+        }
+        [data-testid="stSidebarCollapsedControl"] button {
+            width: 60px !important;
+            height: 60px !important;
+            background: transparent !important;
+            border: none !important;
+        }
+        [data-testid="stSidebarCollapsedControl"] svg {
+            color: #FFFFFF !important;
+            width: 30px !important;
+            height: 30px !important;
+        }
+        [data-testid="stSidebarCollapsedControl"]::after {
+            content: "MENÚ";
+            position: absolute;
+            bottom: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.6rem;
+            font-weight: 800;
+            color: #F32624;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+        @keyframes menu-flota {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
     }
     </style>
     """, unsafe_allow_html=True)
