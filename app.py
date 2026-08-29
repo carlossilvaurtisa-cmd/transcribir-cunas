@@ -35,8 +35,6 @@ paginas = st.navigation([
             icon=":material/music_note:"),
     st.Page("app_pages/5_video.py", title="Video",
             icon=":material/movie:"),
-    st.Page("app_pages/6_youtube.py", title="YouTube",
-            icon=":material/smart_display:"),
 ])
 paginas.run()
 

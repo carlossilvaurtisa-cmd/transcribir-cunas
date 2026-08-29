@@ -6,4 +6,3 @@ pymupdf
 python-docx
 reportlab
 pillow
-yt-dlp
