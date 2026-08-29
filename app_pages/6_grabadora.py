@@ -2,13 +2,14 @@
 # BLOQUE 1: HERRAMIENTA — GRABADORA DE AUDIO (PENSADA PARA MÓVIL)
 # Graba hasta 10 min con compresión, botón grande bloqueado,
 # y permite transcribir el audio desde la misma plataforma.
+# Usa un componente custom v2 (HTML + JS inline).
 # ============================================================
 import base64
 import os
 import tempfile
+import urllib.parse
 
 import streamlit as st
-from streamlit.components.v1 import html as html_component
 from groq import Groq
 
 import giro_ui
@@ -34,7 +35,7 @@ def transcribir_con_groq(client, ruta_audio):
     return respuesta.text
 
 
-# ---------- Componente de grabación (HTML + JS del navegador) ----------
+# ---------- HTML del componente (el botón grande) ----------
 HTML_GRABADORA = """
 <div style="text-align:center; font-family:'Century Gothic',sans-serif;">
   <style>
@@ -49,7 +50,7 @@ HTML_GRABADORA = """
       font-family: inherit;
       cursor: pointer;
       box-shadow: 0 6px 18px rgba(243,38,36,.4);
-      transition: transform .15s ease, box-shadow .15s ease;
+      transition: transform .15s ease;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
@@ -73,24 +74,26 @@ HTML_GRABADORA = """
     #estado { color: #636363; font-size: .95rem; }
     #aviso { color: #636363; font-size: .8rem; margin-top: 10px; }
   </style>
-
   <button id="btn">🎙️<br>GRABAR</button>
   <div id="timer">00:00 / 10:00</div>
   <div id="estado">Listo para grabar</div>
   <div id="aviso">Toca GRABAR para empezar · toca DETENER para terminar</div>
 </div>
+"""
 
-<script>
-  const btn = document.getElementById('btn');
-  const timerEl = document.getElementById('timer');
-  const estadoEl = document.getElementById('estado');
+# ---------- JS del componente (la lógica de grabación) ----------
+JS_GRABADORA = """
+export default function (component) {
+  const { setStateValue, parentElement } = component;
+  const btn = parentElement.querySelector('#btn');
+  const timerEl = parentElement.querySelector('#timer');
+  const estadoEl = parentElement.querySelector('#estado');
   const MAX_SEGUNDOS = 600; // 10 minutos
 
   let mediaRecorder = null;
   let chunks = [];
   let segundos = 0;
   let timerInt = null;
-  let wakeLock = null;
 
   function actualizarTimer() {
     const m = String(Math.floor(segundos / 60)).padStart(2, '0');
@@ -101,14 +104,12 @@ HTML_GRABADORA = """
   function bloquear(grabando) {
     btn.classList.toggle('grabando', grabando);
     btn.innerHTML = grabando ? '⏹️<br>DETENER' : '🎙️<br>GRABAR';
-    estadoEl.textContent = grabando ? 'Grabando… (no apagues la pantalla)' : 'Listo para grabar';
+    estadoEl.textContent = grabando
+      ? 'Grabando… (toca DETENER para terminar)'
+      : 'Listo para grabar';
   }
 
-  async function pedirWakeLock() {
-    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* sin soporte */ }
-  }
-
-  btn.onclick = async () => {
+  btn.addEventListener('click', async () => {
     if (mediaRecorder === null) {
       // ----- INICIAR GRABACIÓN -----
       try {
@@ -122,7 +123,7 @@ HTML_GRABADORA = """
         mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
         mediaRecorder.onstop = finalizar;
         mediaRecorder.start();
-        pedirWakeLock();
+        try { await navigator.wakeLock.request('screen'); } catch (e) { /* sin soporte */ }
         timerInt = setInterval(() => {
           segundos++;
           actualizarTimer();
@@ -138,7 +139,7 @@ HTML_GRABADORA = """
       // ----- DETENER GRABACIÓN -----
       mediaRecorder.stop();
     }
-  };
+  });
 
   function finalizar() {
     clearInterval(timerInt);
@@ -149,7 +150,7 @@ HTML_GRABADORA = """
     const reader = new FileReader();
     reader.onloadend = () => {
       const b64 = String(reader.result).split(',')[1];
-      Streamlit.setComponentValue({
+      setStateValue('audio', {
         nombre: nombre,
         base64: b64,
         duracion: segundos,
@@ -160,25 +161,37 @@ HTML_GRABADORA = """
     mediaRecorder.stream.getTracks().forEach(t => t.stop());
     mediaRecorder = null;
     bloquear(false);
-    estadoEl.textContent = '✅ Grabación lista — mira abajo para transcribir o descargar';
+    estadoEl.textContent = '✅ Grabación lista — mira abajo';
   }
-</script>
+}
 """
+
+# Registro del componente (una sola vez, al importar el módulo)
+_GRABADORA = st.components.v2.component(
+    "grabadora_audio",
+    html=HTML_GRABADORA,
+    js=JS_GRABADORA,
+)
 
 
 # ---------- INTERFAZ ----------
 st.title("🎙️ Grabadora")
 st.caption("Graba hasta 10 minutos con el botón grande · el audio queda comprimido automáticamente.")
 
-valor = html_component(HTML_GRABADORA, height=340, key="grabadora")
+resultado = _GRABADORA(
+    key="grabadora",
+    on_value_change=lambda: None,
+    on_submitted_change=lambda: None,
+)
 
-if valor and valor.get("base64"):
-    datos_audio = base64.b64decode(valor["base64"])
-    nombre_audio = valor["nombre"]
-    duracion = valor.get("duracion", 0)
-    formato = valor.get("formato", "audio/webm")
+grabacion = getattr(resultado, "audio", None)
+
+if grabacion and grabacion.get("base64"):
+    datos_audio = base64.b64decode(grabacion["base64"])
+    nombre_audio = grabacion["nombre"]
+    duracion = grabacion.get("duracion", 0)
+    formato = grabacion.get("formato", "audio/webm")
     ext = ".m4a" if "mp4" in formato else ".webm"
-
     peso_mb = len(datos_audio) / (1024 * 1024)
 
     st.divider()
@@ -189,17 +202,12 @@ if valor and valor.get("base64"):
 
     st.audio(datos_audio, format=formato)
 
-    c_desc, c_borrar = st.columns(2)
-    with c_desc:
-        st.download_button(
-            "⬇️ Descargar audio",
-            data=datos_audio,
-            file_name=nombre_audio,
-            type="primary",
-        )
-    with c_borrar:
-        if st.button("🗑️ Descartar grabación", key="descartar_grab"):
-            st.rerun()
+    st.download_button(
+        "⬇️ Descargar audio",
+        data=datos_audio,
+        file_name=nombre_audio,
+        type="primary",
+    )
 
     # ----- TRANSCRIBIR DESDE LA MISMA PLATAFORMA -----
     st.subheader("📝 Transcribir esta grabación")
@@ -229,7 +237,6 @@ if valor and valor.get("base64"):
                         type="primary",
                     )
                 with c2:
-                    import urllib.parse
                     mensaje = f"🎙️ Transcripción de grabación:\n\n{texto_editado}"[:4000]
                     st.link_button("📲 Compartir por WhatsApp",
                                    "https://wa.me/?text=" + urllib.parse.quote(mensaje))
