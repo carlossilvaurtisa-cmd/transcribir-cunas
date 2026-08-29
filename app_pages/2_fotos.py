@@ -137,30 +137,31 @@ if herramienta == "Transformar fotografía":
             st.image(Image.open(archivo), width=110)
             st.caption(f"{archivo.name[:18]}… ({peso_mb(archivo.getvalue()):.1f} MB)")
 
-    st.subheader("2 · Correcciones simples")
-    c1, c2 = st.columns(2)
-    brillo = c1.slider("💡 Brillo", 0.5, 1.5, 1.0, 0.05)
-    contraste = c2.slider("◐ Contraste", 0.5, 1.5, 1.0, 0.05)
-    c3, c4 = st.columns(2)
-    saturacion = c3.slider("🎨 Saturación", 0.0, 2.0, 1.0, 0.05)
-    nitidez = c4.slider("✨ Nitidez", 0.0, 2.0, 1.0, 0.05)
+    # Menús desplegables con los ajustes
+    with st.expander("💡 Correcciones simples — brillo, contraste, saturación, nitidez", expanded=True):
+        c1, c2 = st.columns(2)
+        brillo = c1.slider("Brillo", 0.5, 1.5, 1.0, 0.05)
+        contraste = c2.slider("Contraste", 0.5, 1.5, 1.0, 0.05)
+        c3, c4 = st.columns(2)
+        saturacion = c3.slider("Saturación", 0.0, 2.0, 1.0, 0.05)
+        nitidez = c4.slider("Nitidez", 0.0, 2.0, 1.0, 0.05)
 
-    st.subheader("3 · Ajustes de forma")
-    c5, c6, c7 = st.columns(3)
-    rotacion = c5.selectbox("Rotar", [0, 90, 180, 270], index=0)
-    volteo = c6.selectbox("Voltear", ["Ninguno", "Horizontal", "Vertical"])
-    filtro = c7.selectbox("Filtro", ["Ninguno", "Blanco y negro", "Sepia", "Desenfoque suave"])
+    with st.expander("🔄 Ajustes de forma — rotar, voltear, filtro", expanded=False):
+        c5, c6, c7 = st.columns(3)
+        rotacion = c5.selectbox("Rotar", [0, 90, 180, 270], index=0)
+        volteo = c6.selectbox("Voltear", ["Ninguno", "Horizontal", "Vertical"])
+        filtro = c7.selectbox("Filtro", ["Ninguno", "Blanco y negro", "Sepia", "Desenfoque suave"])
 
-    st.subheader("4 · Tamaño y peso de salida")
-    c8, c9, c10 = st.columns(3)
-    ancho_max = c8.selectbox(
-        "Ancho máximo (px)",
-        ["Original", 4096, 2560, 1920, 1280, 800],
-        help="Si la foto es más ancha, se reduce. 'Original' la deja igual.",
-    )
-    calidad = c9.slider("Calidad (JPG/WebP)", 30, 100, 85,
-                        help="Menos calidad = menos peso. Recomendado: 85")
-    formato_salida = c10.selectbox("Formato de salida", ["JPG", "PNG", "WEBP"])
+    with st.expander("⚖️ Tamaño y peso de salida", expanded=False):
+        c8, c9, c10 = st.columns(3)
+        ancho_max = c8.selectbox(
+            "Ancho máximo (px)",
+            ["Original", 4096, 2560, 1920, 1280, 800],
+            help="Si la foto es más ancha, se reduce. 'Original' la deja igual.",
+        )
+        calidad = c9.slider("Calidad (JPG/WebP)", 30, 100, 85,
+                            help="Menos calidad = menos peso. Recomendado: 85")
+        formato_salida = c10.selectbox("Formato de salida", ["JPG", "PNG", "WEBP"])
 
     total_original = sum(peso_mb(a.getvalue()) for a in archivos)
 
