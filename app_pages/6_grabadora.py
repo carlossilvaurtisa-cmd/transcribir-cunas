@@ -16,7 +16,6 @@ from groq import Groq
 import giro_ui
 
 MODELO_GROQ = "whisper-large-v3-turbo"
-MODELO_CHAT = "llama-3.3-70b-versatile"
 
 
 @st.cache_resource
@@ -35,27 +34,6 @@ def transcribir_con_groq(client, ruta_audio):
             response_format="json",
         )
     return respuesta.text
-
-
-def mejorar_texto_con_ia(texto):
-    """Limpia y ordena el texto de la transcripción usando IA:
-    corrige errores, quita muletillas, puntúa y arma párrafos."""
-    client = get_cliente_groq()
-    respuesta = client.chat.completions.create(
-        model=MODELO_CHAT,
-        messages=[
-            {"role": "system", "content": (
-                "Eres un transcriptor profesional de entrevistas. Recibes una transcripción "
-                "automática con errores y muletillas. Devuelve SOLO el texto corregido: "
-                "corrige palabras mal escuchadas, elimina muletillas (eh, este, ya no, o sea, "
-                "repetido), pon puntuación y mayúsculas correctas, y separa en párrafos "
-                "cortos por idea. No agregues comentarios ni explicaciones."
-            )},
-            {"role": "user", "content": texto},
-        ],
-        temperature=0.2,
-    )
-    return respuesta.choices[0].message.content.strip()
 
 
 def comprimir_a_mp3(ruta_entrada, ruta_salida, rate=16000, bitrate=64):
@@ -310,13 +288,7 @@ if grabacion and grabacion.get("base64"):
 
             with st.container(border=True):
                 st.text_area("Transcripción", value=texto, height=200, key="ta_grabadora")
-                c_mej, c1, c2 = st.columns(3)
-                with c_mej:
-                    if st.button("✨ Mejorar con IA", key="mejorar_grab"):
-                        with st.spinner("Mejorando el texto…"):
-                            mejorado = mejorar_texto_con_ia(st.session_state["ta_grabadora"])
-                        st.session_state["ta_grabadora"] = mejorado
-                        st.rerun()
+                c1, c2 = st.columns(2)
                 with c1:
                     st.download_button(
                         "⬇️ Descargar .txt",
